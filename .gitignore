@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/raw/
+data/processed/
+data/vectorstore/
+data/outbox/
+data/*.db*
+frontend/node_modules/
+frontend/dist/
+*.deb
+*.tsbuildinfo
+.DS_Store

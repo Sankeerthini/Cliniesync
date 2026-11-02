@@ -1,0 +1,10 @@
+# Optional extras (install only what you need)
+# PostgreSQL instead of SQLite (set DATABASE_URL=postgresql+psycopg://user:pw@host/db)
+psycopg[binary]
+# Stronger embeddings (EMBEDDING_MODEL=BAAI/bge-small-en-v1.5) - pulls torch
+sentence-transformers
+# Offline speech-to-text for voice queries (Whisper, runs on the clinic's own GPU/CPU)
+faster-whisper
+# IndicTrans2 for translating the doctor's free-text note (USE_INDICTRANS=true) - pulls torch
+transformers
+IndicTransToolkit

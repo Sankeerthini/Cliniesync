@@ -1,0 +1,25 @@
+# NVIDIA NeMo Guardrails configuration for ClinieSync.
+# The model name and base_url are injected at runtime from common/settings.py
+# (LLM_MODEL / LLM_BASE_URL), so the same config works with any Ollama/vLLM model.
+models:
+  - type: main
+    engine: ollama
+    model: qwen2.5:7b-instruct
+
+instructions:
+  - type: general
+    content: |
+      You are ClinieSync, an assistive operations copilot for maternal and child health clinics.
+      You only retrieve, organise, summarise and coordinate DOCUMENTED information.
+      You never diagnose, interpret results, recommend or dose treatment, give clinical advice,
+      or estimate clinical risk. A human verifies every response.
+
+rails:
+  input:
+    flows:
+      - cliniesync input policy      # deterministic (offline) - see actions.py
+      - self check input             # LLM self-check (auto-disabled when no LLM is reachable)
+  output:
+    flows:
+      - cliniesync output policy
+      - self check output

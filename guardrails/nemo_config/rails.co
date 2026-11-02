@@ -1,0 +1,21 @@
+# ClinieSync Colang (v1) rails.
+# Input: deterministic intent policy first, then the LLM self-check.
+# Output: deterministic output policy, then the LLM self-check.
+
+define bot refuse clinical request
+  "ClinieSync supports workflow tasks only - patient record retrieval, summaries of documented care, population analytics and care coordination. It cannot diagnose, interpret results, recommend treatment or assess risk. Please refer to the treating clinician."
+
+define flow cliniesync input policy
+  $allowed = execute cliniesync_input_policy
+  if not $allowed
+    bot refuse clinical request
+    stop
+
+define bot refuse unsafe output
+  "The generated response was withheld by the ClinieSync output safety policy."
+
+define flow cliniesync output policy
+  $allowed = execute cliniesync_output_policy
+  if not $allowed
+    bot refuse unsafe output
+    stop
