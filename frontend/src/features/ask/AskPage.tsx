@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Mic, MicOff, ShieldCheck, Sparkles, User as UserIcon, X } from "lucide-react";
+import { ArrowUp, ArrowUpRight, Mic, MicOff, ShieldAlert, ShieldCheck, Sparkles, User as UserIcon, X } from "lucide-react";
 import { api, QueryResponse } from "../../api/client";
 import { useApp } from "../../app/context";
+import { shortName } from "../../app/LoginPage";
 import { ErrorNote } from "../../ui/components";
 import { AnswerCard } from "./AnswerCard";
 import { useSpeech } from "./useSpeech";
@@ -9,6 +10,8 @@ import { useSpeech } from "./useSpeech";
 interface Turn { id: number; q: string; mode: "text" | "voice"; res?: QueryResponse; error?: string; loading: boolean }
 
 const PIPE = ["Text / voice", "Guardrails + access", "Query router", "SQL · RAG", "Grounded answer", "Human review"];
+// what the loading card says while each pipeline stage is lit
+const STAGE_TEXT = ["Reading your question", "Checking safety rules and access", "Routing the request", "Retrieving records", "Grounding the answer", "Preparing for your review"];
 
 export function AskPage() {
   const { user, patientId, setPatientId, pendingAsk, clearPendingAsk, health } = useApp();
@@ -21,7 +24,14 @@ export function AskPage() {
   const speech = useSpeech((t, final) => { setText(t); setMode("voice"); if (final) setTimeout(() => ask(t, undefined, "voice"), 250); });
 
   useEffect(() => { api.get<typeof examples>("/api/query/examples").then(setExamples).catch(() => null); }, []);
-  useEffect(() => { if (pendingAsk) { ask(pendingAsk); clearPendingAsk(); } /* eslint-disable-next-line */ }, [pendingAsk]);
+  // a question handed over from another page (home ask bar, journey buttons) runs exactly once,
+  // even when React re-runs this effect (StrictMode in development)
+  const handed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingAsk) { handed.current = null; return; }
+    if (handed.current === pendingAsk) return;
+    handed.current = pendingAsk; ask(pendingAsk); clearPendingAsk();
+    /* eslint-disable-next-line */ }, [pendingAsk]);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [turns]);
 
   async function ask(q: string, pid?: string, m: "text" | "voice" = mode) {
@@ -45,21 +55,33 @@ export function AskPage() {
             <p>Type or speak (English). Every request passes the safety pipeline; every answer cites its sources and waits for your verification.</p></div>
         </div>
 
-        <div className="pipeline" aria-label="Request pipeline">
-          {PIPE.map((p, i) => <span key={p} className={`pipe-step ${stage === i ? "active" : stage > i ? "done" : ""}`}>{p}</span>)}
-        </div>
+        <ol className={`pipeline ${stage >= 0 ? "live" : ""}`} aria-label="Request pipeline">
+          {PIPE.map((p, i) => <li key={p} className={`pipe-step ${stage === i ? "active" : stage > i ? "done" : ""}`}><i />{p}</li>)}
+        </ol>
 
         <div className="thread">
           {turns.length === 0 && (
-            <div className="welcome card fade-in">
-              <Sparkles size={22} color="#0f7c80" />
-              <div><h3>What would you like to know, {user.display_name}?</h3>
-                <p className="small muted">Start with one of these, or ask your own question.</p></div>
+            <div className="welcome fade-in">
+              <span className="welcome-icon"><Sparkles size={22} /></span>
+              <h3>What would you like to know, {shortName(user.display_name)}?</h3>
+              <p className="muted">Ask in plain English - or tap the mic. Start with one of these:</p>
+              <div className="welcome-grid">
+                {examples?.examples.slice(0, 4).map((e, i) => (
+                  <button key={e} className="welcome-card" style={{ "--d": `${i * 60}ms` } as React.CSSProperties} onClick={() => ask(e)}>
+                    <span>{e}</span><ArrowUpRight size={16} /></button>))}
+              </div>
+              {!!examples?.blocked_examples.length && <div className="welcome-blocked">
+                <span><ShieldAlert size={14} />Watch the guardrails refuse:</span>
+                {examples.blocked_examples.slice(0, 3).map(e => <button key={e} className="chip-btn danger" onClick={() => ask(e)}>{e}</button>)}
+              </div>}
             </div>)}
           {turns.map(t => (
             <div key={t.id} className="turn">
               <div className="bubble-q"><span>{t.mode === "voice" && <Mic size={13} />} {t.q}</span></div>
-              {t.loading && <div className="answer loading"><span className="spin" /> Checking safety rules and retrieving records…</div>}
+              {t.loading && <div className="answer loading" aria-live="polite">
+                <div className="loading-line"><span className="spin" />{STAGE_TEXT[Math.max(0, stage)]}…</div>
+                <span className="sk" style={{ width: "92%" }} /><span className="sk" style={{ width: "78%" }} /><span className="sk" style={{ width: "56%" }} />
+              </div>}
               {t.error && <ErrorNote error={t.error} />}
               {t.res && <AnswerCard res={t.res} onAsk={(q, pid) => ask(q, pid)} />}
             </div>))}

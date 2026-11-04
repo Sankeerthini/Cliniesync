@@ -12,7 +12,7 @@ import { JourneyPage } from "./features/journey/JourneyPage";
 import { KpiPage } from "./features/kpi/KpiPage";
 import { ReviewsPage } from "./features/reviews/ReviewsPage";
 import { TrustPage } from "./features/trust/TrustPage";
-import { Loading } from "./ui/components";
+import { Aurora, BackToTop, Loading } from "./ui/components";
 
 const readTab = (): TabId => (window.location.hash.replace("#/", "") || "home") as TabId;
 
@@ -39,7 +39,7 @@ export default function App() {
   const nav = useCallback((t: TabId, opts?: { patientId?: string; askText?: string }) => {
     if (opts?.patientId) setPatientId(opts.patientId);
     if (opts?.askText) setPendingAsk(opts.askText);
-    window.location.hash = `#/${t}`; setTab(t); window.scrollTo({ top: 0, behavior: "smooth" });
+    window.location.hash = `#/${t}`; setTab(t); window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
   const logout = () => { setToken(null); setUser(null); setPatientId(null); window.location.hash = "#/home"; };
 
@@ -53,8 +53,10 @@ export default function App() {
 
   return (
     <AppCtx.Provider value={{ user, health, nav, patientId, setPatientId, pendingAsk, clearPendingAsk: () => setPendingAsk(null), logout }}>
+      <Aurora />
       <Header tab={current} />
-      <main><Page /></main>
+      <main key={current} className="page-enter"><Page /></main>
+      <BackToTop />
     </AppCtx.Provider>
   );
 }

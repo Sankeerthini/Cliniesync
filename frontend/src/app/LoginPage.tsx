@@ -1,42 +1,79 @@
 // Sign-in page: a scroll-driven story (population -> one mother -> her journey through time), then the role cards.
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, BarChart3, ClipboardList, LogIn, ShieldCheck, Stethoscope } from "lucide-react";
+import { ArrowDown, ArrowRight, BarChart3, ClipboardList, Database, Eye, EyeOff, LogIn, ShieldCheck, Stethoscope, UserCheck } from "lucide-react";
 import { api, setToken, User } from "../api/client";
-import { Card3D } from "../ui/components";
+import { Aurora, BackToTop, prefersReducedMotion, usePageScroll } from "../ui/components";
 import { Logo } from "./Header";
 import { ease, GlobeCanvas, PregnancyClock, seg, STAGES, TAU_END, useScrollProgress } from "./intro/CareJourneyScene";
 
 const ROLE_INFO = {
-  doctor: { icon: Stethoscope, blurb: "Patient history, longitudinal timelines, EHR queries, clinical summaries, Share Report", tone: "brand" },
-  coordinator: { icon: ClipboardList, blurb: "Follow-up queues, patient tracking, multilingual reminders with approval", tone: "blue" },
-  admin: { icon: BarChart3, blurb: "Population analytics, visit volume, investigation utilization, KPIs", tone: "violet" },
+  doctor: { icon: Stethoscope, kicker: "Clinician", tone: "brand",
+    skills: ["Patient history", "Longitudinal timelines", "EHR queries", "Clinical summaries", "Share Report"] },
+  coordinator: { icon: ClipboardList, kicker: "Care coordination", tone: "blue",
+    skills: ["Follow-up queues", "Patient tracking", "Multilingual reminders with approval"] },
+  admin: { icon: BarChart3, kicker: "Hospital operations", tone: "violet",
+    skills: ["Population analytics", "Visit volume", "Investigation utilization", "KPIs"] },
 } as const;
 
+const PRINCIPLES = [
+  { icon: ShieldCheck, title: "Assistive, not diagnostic", text: "AI only retrieves, organises, summarises and coordinates." },
+  { icon: UserCheck, title: "Verified by a human", text: "Every answer is checked by a person before anyone acts on it." },
+  { icon: Database, title: "Synthetic data only", text: "This demo runs on a simulated registry - no real patients." },
+];
+
 const CHAPTERS = [{ at: 0, label: "600 mothers" }, { at: 0.24, label: "One mother" }, { at: 0.48, label: "Her journey" }, { at: 0.96, label: "Sign in" }];
+
+// "Rekha S. (Care Coordinator)" -> "Rekha S."; the role is shown separately on the card
+export const shortName = (n: string) => n.replace(/\s*\(.*\)\s*$/, "");
+
+// true while the element is on screen; `once` keeps it true after the first sighting (for reveal animations)
+function useInView(ref: React.RefObject<Element>, once = false) {
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setSeen(true); if (once) io.disconnect(); } else if (!once) setSeen(false);
+    }, { rootMargin: "0px 0px -15% 0px" });
+    io.observe(el); return () => io.disconnect();
+  }, [ref, once]);
+  return seen;
+}
 
 export function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
   const [demo, setDemo] = useState<{ password: string; users: User[] } | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
   const scroller = useRef<HTMLElement>(null);
+  const copy = useRef<HTMLDivElement>(null);
+  const roles = useRef<HTMLElement>(null);
   const p = useScrollProgress(scroller);
-  const reduce = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const page = usePageScroll();
+  const rolesShown = useInView(roles, true);
+  const rolesOnScreen = useInView(roles);
+  const reduce = prefersReducedMotion();
   useEffect(() => { api.get<{ password: string; users: User[] }>("/api/auth/demo-users").then(setDemo).catch(() => null); }, []);
 
   const login = async (u: string, pw: string) => {
-    setBusy(true); setErr(null);
+    setPending(u); setErr(null);
     try {
       const r = await api.post<{ token: string; user: User }>("/api/auth/login", { username: u, password: pw });
       setToken(r.token); onLogin(r.user);
-    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+    } catch (e: any) { setErr(e.message); setPending(null); }
   };
-  const toRoles = () => document.getElementById("roles")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+
+  const behavior = reduce ? "auto" : "smooth";
+  const toRoles = () => roles.current?.scrollIntoView({ behavior });
   const toPoint = (at: number) => {
     const el = scroller.current; if (!el) return;
     const top = el.getBoundingClientRect().top + window.scrollY + at * (el.offsetHeight - window.innerHeight);
-    window.scrollTo({ top: top + 2, behavior: reduce ? "auto" : "smooth" });
+    window.scrollTo({ top: top + 2, behavior });
+  };
+  const glow = (e: React.PointerEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`); e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
   };
 
   const copyOut = seg(p, 0.08, 0.2);
@@ -47,25 +84,32 @@ export function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
 
   return (
     <div className="intro">
-      <header className="intro-nav">
-        <div className="intro-brand"><Logo size={34} /><span><b>ClinieSync</b><small>MCH Operations Copilot</small></span></div>
-        <div className="intro-progress" aria-hidden="true"><span style={{ transform: `scaleX(${p})` }} /></div>
-        <button className="btn primary sm" onClick={toRoles}><LogIn size={15} />Sign in</button>
+      <Aurora />
+
+      {/* transparent over the hero; frosts once the page scrolls. The sign-in button steps aside when the role cards are on screen. */}
+      <header className={`intro-nav ${page.y > 8 ? "scrolled" : ""}`}>
+        <div className="intro-nav-inner">
+          <button className="intro-brand" onClick={() => window.scrollTo({ top: 0, behavior })} aria-label="ClinieSync, back to top">
+            <Logo size={30} /><b>ClinieSync</b></button>
+          <button className={`cta primary sm nav-signin ${rolesOnScreen ? "away" : ""}`} onClick={toRoles} tabIndex={rolesOnScreen ? -1 : 0}>
+            <LogIn size={15} />Sign in</button>
+        </div>
+        <div className="intro-progress" aria-hidden="true"><span style={{ transform: `scaleX(${page.p})` }} /></div>
       </header>
 
       <section className="intro-scroll" ref={scroller} aria-label="ClinieSync introduction">
         <div className="intro-sticky">
-          <GlobeCanvas progress={p} reduce={reduce} />
+          <GlobeCanvas progress={p} reduce={reduce} avoid={copy} />
 
-          <div className="intro-copy" style={{ opacity: 1 - copyOut, transform: `translateY(${-copyOut * 30}px)`, pointerEvents: copyOut > 0.6 ? "none" : undefined }}>
-            <div className="eyebrow">Health-a-thon 2026 · Team ClinieSync · TANUH, IISc Bangalore</div>
-            <h1>Every mother.<br />Every visit.<br /><span className="grad">In sync.</span></h1>
-            <p className="lead">The maternal &amp; child health copilot that turns scattered records into answers, timelines and timely follow-ups - in the patient's language.</p>
-            <div className="row" style={{ gap: 12, marginTop: 24 }}>
-              <button className="btn primary lg" onClick={toRoles}><LogIn size={18} />Sign in</button>
-              <button className="btn lg" onClick={() => toPoint(0.5)}>Explore her journey<ArrowDown size={17} /></button>
+          <div className="intro-copy" ref={copy} style={{ opacity: 1 - copyOut, transform: `translateY(${-copyOut * 30}px)`, pointerEvents: copyOut > 0.6 ? "none" : undefined }}>
+            <div className="eyebrow rise">Health-a-thon 2026 · Team ClinieSync · TANUH, IISc Bangalore</div>
+            <h1 className="rise" style={{ "--d": "80ms" } as React.CSSProperties}>Every mother.<br />Every visit.<br /><span className="grad">In sync.</span></h1>
+            <p className="lead rise" style={{ "--d": "160ms" } as React.CSSProperties}>The maternal &amp; child health copilot that turns scattered records into answers, timelines and timely follow-ups - in the patient's language.</p>
+            <div className="intro-ctas rise" style={{ "--d": "240ms" } as React.CSSProperties}>
+              <button className="cta primary" onClick={toRoles}>Sign in<span className="arr"><ArrowRight size={17} /></span></button>
+              <button className="cta glass" onClick={() => toPoint(0.5)}>Explore her journey<span className="arr"><ArrowDown size={17} /></span></button>
             </div>
-            <ul className="intro-legend" aria-label="Dot colours">
+            <ul className="intro-legend rise" style={{ "--d": "320ms" } as React.CSSProperties} aria-label="Dot colours">
               {STAGES.map(s => <li key={s.key}><i style={{ background: `rgb(${s.color.join(",")})` }} />{s.label}</li>)}
             </ul>
           </div>
@@ -85,36 +129,70 @@ export function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
         </div>
       </section>
 
-      <section id="roles" className="intro-roles">
-        <div className="eyebrow">Choose your role</div>
-        <h2>One record. Three ways to work.</h2>
-        <div className="grid g3" style={{ marginTop: 22 }}>
-          {(demo?.users || []).map(u => {
-            const info = ROLE_INFO[u.role]; const Icon = info.icon;
+      <section id="roles" ref={roles} className={`intro-roles ${rolesShown ? "in" : ""}`}>
+        <div className="roles-head">
+          <div>
+            <div className="eyebrow">Choose your role</div>
+            <h2>One record. Three ways to work.</h2>
+          </div>
+          <p className="muted">Pick a demo account to step straight in.</p>
+        </div>
+
+        <div className="role-grid">
+          {(demo?.users || []).map((u, i) => {
+            const info = ROLE_INFO[u.role]; const Icon = info.icon; const name = shortName(u.display_name);
             return (
-              <Card3D key={u.username} className={`role-card tone-${info.tone}`} tilt={8}>
-                <span className="role-icon lift"><Icon size={26} /></span>
-                <h3 className="lift">{u.display_name}</h3>
-                <p className="small muted">{info.blurb}</p>
-                <button className="btn primary" disabled={busy} onClick={() => login(u.username, demo!.password)}>Continue</button>
-              </Card3D>
+              <button key={u.username} className={`role-card tone-${info.tone}`} style={{ "--d": `${i * 90}ms` } as React.CSSProperties}
+                disabled={!!pending} onPointerMove={glow} onClick={() => login(u.username, demo!.password)}
+                aria-label={`Continue as ${u.display_name}`}>
+                <span className="role-icon"><Icon size={24} /></span>
+                <span className="role-body">
+                  <span className="role-kicker">{info.kicker}</span>
+                  <span className="role-name">{name}</span>
+                  <span className="role-skills">{info.skills.map(s => <span key={s}>{s}</span>)}</span>
+                </span>
+                <span className="role-go">
+                  {pending === u.username ? <><span className="spin" />Signing in…</> : <span className="role-go-label">Continue as {name.split(" ").slice(0, 2).join(" ")}</span>}
+                  <span className="arr"><ArrowRight size={16} /></span>
+                </span>
+              </button>
             );
           })}
+          {!demo && [0, 1, 2].map(i => <div key={i} className="role-card skeleton" aria-hidden="true" />)}
         </div>
-        <details style={{ marginTop: 18 }}>
-          <summary>Sign in with username &amp; password</summary>
-          <form className="row" style={{ marginTop: 10 }} onSubmit={e => { e.preventDefault(); login(username, password); }}>
-            <input className="input" style={{ maxWidth: 220 }} placeholder="username" value={username} onChange={e => setUsername(e.target.value)} />
-            <input className="input" style={{ maxWidth: 220 }} type="password" placeholder="password" value={password} onChange={e => setPassword(e.target.value)} />
-            <button className="btn primary" disabled={busy}>Sign in</button>
-          </form>
-          {demo && <p className="tiny muted" style={{ marginTop: 6 }}>Demo password: <span className="mono">{demo.password}</span></p>}
-        </details>
-        {err && <div className="callout bad" style={{ marginTop: 12 }}>{err}</div>}
-        <div className="callout brand" style={{ marginTop: 22, maxWidth: 680 }}><ShieldCheck size={18} />
-          <span>Assistive, not diagnostic. AI only retrieves, organises, summarises and coordinates; every answer is verified by a human.
-            This demo runs on <b>synthetic data only</b>.</span></div>
+
+        <div className="or-line"><span>or sign in with a username</span></div>
+
+        <form className="signin-card" onSubmit={e => { e.preventDefault(); login(username, password); }}>
+          <label className="sf">Username
+            <input className="input" autoComplete="username" placeholder="e.g. dr.ananya" value={username} onChange={e => setUsername(e.target.value)} required />
+          </label>
+          <label className="sf">Password
+            <span className="pw">
+              <input className="input" type={showPw ? "text" : "password"} autoComplete="current-password" placeholder="Your password"
+                value={password} onChange={e => setPassword(e.target.value)} required />
+              <button type="button" className="pw-eye" onClick={() => setShowPw(v => !v)} aria-label={showPw ? "Hide password" : "Show password"}>
+                {showPw ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+            </span>
+          </label>
+          <button className="cta primary" disabled={!!pending}>
+            {pending && pending === username ? <><span className="spin light" />Signing in…</> : <>Sign in<span className="arr"><ArrowRight size={17} /></span></>}</button>
+          {demo && <p className="sf-hint">Demo password: <button type="button" className="linkish" onClick={() => setPassword(demo.password)}>
+            <span className="mono">{demo.password}</span> · use it</button></p>}
+        </form>
+        {err && <div className="callout bad fade-in" role="alert" style={{ marginTop: 14 }}>{err}</div>}
+
+        <ul className="principles">
+          {PRINCIPLES.map(({ icon: Icon, title, text }) => (
+            <li key={title}><span className="pr-icon"><Icon size={18} /></span><span><b>{title}</b>{text}</span></li>))}
+        </ul>
       </section>
+
+      <footer className="intro-foot">
+        <Logo size={20} /><span>ClinieSync · Health-a-thon 2026 · TANUH, IISc Bangalore</span>
+      </footer>
+
+      <BackToTop />
     </div>
   );
 }

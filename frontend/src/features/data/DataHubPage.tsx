@@ -9,11 +9,13 @@ export function DataHubPage() {
   const [preview, setPreview] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [drag, setDrag] = useState(false);
+  const [fname, setFname] = useState<string | null>(null);
   if (!q.data) return <div className="page"><Loading /></div>;
   const r = q.data.report;
   const steps = r?.steps || {};
   const upload = async (f: File) => {
-    setErr(null); setPreview(null);
+    setErr(null); setPreview(null); setFname(f.name);
     const fd = new FormData(); fd.append("file", f);
     try { setPreview(await api.upload("/api/data/register/preview", fd)); } catch (e: any) { setErr(e.message); }
   };
@@ -60,9 +62,15 @@ export function DataHubPage() {
         <div className="card">
           <h3><Upload size={16} /> Validate a new Excel ANC register</h3>
           <p className="tiny muted" style={{ margin: "4px 0 10px" }}>Preview what the ETL would extract (no data is loaded). Use the generated file in data/raw/register_F3/ to try it.</p>
-          <input type="file" accept=".xlsx,.xls" onChange={e => e.target.files?.[0] && upload(e.target.files[0])} />
+          <label className={`dropzone ${drag ? "over" : ""}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+            onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}>
+            <input type="file" accept=".xlsx,.xls" onChange={e => e.target.files?.[0] && upload(e.target.files[0])} />
+            <span className="dz-icon"><Upload size={22} /></span>
+            <b>{fname || "Drop an Excel register here"}</b>
+            <span>{fname ? "Drop another file to replace it" : <>or <u>browse</u> · .xlsx / .xls</>}</span>
+          </label>
           {preview && (<div className="col fade-in" style={{ marginTop: 12 }}>
-            <div className="kpi-mini four">{Object.entries(preview.checks).map(([k, v]) => <div key={k}><span>{k.replace(/_/g, " ")}</span><b>{String(v)}</b></div>)}</div>
+            <div className="check-grid">{Object.entries(preview.checks).map(([k, v]) => <div key={k}><span>{k.replace(/_/g, " ")}</span><b>{String(v)}</b></div>)}</div>
             <DataTable rows={preview.sample} columns={Object.keys(preview.sample[0] || {}).slice(0, 7).map(k => ({ key: k, label: k.replace(/_/g, " ") }))} /></div>)}
         </div>
         <div className="card">

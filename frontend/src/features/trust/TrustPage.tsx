@@ -4,7 +4,7 @@ import { CheckCircle2, FlaskConical, Layers, ScrollText, ShieldCheck, XCircle } 
 import { api } from "../../api/client";
 import { useApp } from "../../app/context";
 import { ChartCard } from "../../charts/ChartRenderer";
-import { DataTable, ErrorNote, Loading, useAsync } from "../../ui/components";
+import { DataTable, EmptyState, ErrorNote, Loading, useAsync } from "../../ui/components";
 
 interface Policy { version: string; intent_matrix: { intent: string; label: string; mechanism: string; action: string }[]; roles: Record<string, { intents: string[]; scopes: string[] }> }
 interface Play { allowed: boolean; intent: string; category: string | null; message: string; layers: { layer: string; verdict: string; detail: string }[] }
@@ -60,7 +60,9 @@ export function TrustPage() {
 
       <div className="card" style={{ marginTop: 18 }}>
         <h3><Layers size={16} /> Guardrail stack - every request, every time</h3>
-        <div className="stack">{STACK.map(s => <div key={s.k} className="stack-step"><span className="stack-k">{s.k}</span><b>{s.t}</b><small>{s.d}</small></div>)}</div>
+        <div className="stack-rail" aria-hidden="true"><span className="stack-pulse" />{STACK.map(s => <i key={s.k}>{s.k}</i>)}</div>
+        <div className="stack">{STACK.map((s, i) => <div key={s.k} className="stack-step" style={{ "--d": `${i * 50}ms` } as React.CSSProperties}>
+          <span className="stack-k">{s.k}</span><b>{s.t}</b><small>{s.d}</small></div>)}</div>
       </div>
 
       <div className="grid g2" style={{ marginTop: 18 }}>
@@ -80,7 +82,7 @@ export function TrustPage() {
               <div key={i} className="trace-row"><span className={`badge ${l.verdict === "pass" || l.verdict === "route" ? "ok" : l.verdict === "block" ? "bad" : l.verdict === "skipped" ? "neutral" : "warn"}`}>{l.verdict}</span>
                 <b>{l.layer}</b><span className="muted">{l.detail}</span></div>))}</div></div></div>)}
         </div>
-        {blockedSpec ? <ChartCard spec={blockedSpec} /> : <div className="card empty">No blocked requests yet - try the playground or the Ask page.</div>}
+        {blockedSpec ? <ChartCard spec={blockedSpec} /> : <div className="card"><EmptyState icon={<ShieldCheck size={26} />} title="Nothing blocked yet" text="Try the playground or the Ask page." /></div>}
       </div>
 
       <div className="card" style={{ marginTop: 18 }}>

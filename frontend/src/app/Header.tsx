@@ -1,7 +1,9 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  BarChart3, BellRing, ClipboardCheck, Cpu, Database, Home, LogOut, MessageSquareText, Route, ShieldCheck, Target,
+  BarChart3, BellRing, ClipboardCheck, Cpu, Database, Home, LogOut, Menu, MessageSquareText, Route, ShieldCheck, Target, X,
 } from "lucide-react";
 import type { Role } from "../api/client";
+import { usePageScroll } from "../ui/components";
 import { TabId, useApp } from "./context";
 
 export const TABS: { id: TabId; label: string; icon: typeof Home; roles: Role[] }[] = [
@@ -31,19 +33,48 @@ export function Logo({ size = 34 }: { size?: number }) {
   );
 }
 
+const initials = (n: string) => n.replace(/\s*\(.*\)\s*$/, "").replace(/^Dr\.\s*/, "").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
 export function Header({ tab }: { tab: TabId }) {
   const { user, nav, health, logout } = useApp();
   const tabs = TABS.filter(t => t.roles.includes(user.role));
   const llmOk = health?.llm.available;
+  const { p, y } = usePageScroll();
+  const [menu, setMenu] = useState(false);
+  const tabsRef = useRef<HTMLElement>(null);
+  const [ink, setInk] = useState<{ x: number; w: number } | null>(null);
+
+  // the active-tab pill slides between tabs
+  useLayoutEffect(() => {
+    const place = () => {
+      const bar = tabsRef.current, el = bar?.querySelector<HTMLElement>(".tab.active");
+      setInk(el ? { x: el.offsetLeft, w: el.offsetWidth } : null);
+      // keep the active tab visible when the bar scrolls sideways (only this bar - never the page)
+      if (bar && el && (el.offsetLeft < bar.scrollLeft || el.offsetLeft + el.offsetWidth > bar.scrollLeft + bar.clientWidth))
+        bar.scrollTo({ left: el.offsetLeft - 16, behavior: "smooth" });
+    };
+    place(); window.addEventListener("resize", place);
+    document.fonts?.ready.then(place);
+    return () => window.removeEventListener("resize", place);
+  }, [tab, tabs.length]);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
+  const go = (t: TabId) => { setMenu(false); nav(t); };
+
   return (
-    <header className="app-header">
+    <header className={`app-header ${y > 8 || menu ? "scrolled" : ""}`}>
       <div className="header-inner">
-        <button className="brand-logo" onClick={() => nav("home")} aria-label="ClinieSync home">
-          <Logo /><span><b>ClinieSync</b><small>MCH Operations Copilot</small></span>
+        <button className="brand-logo" onClick={() => go("home")} aria-label="ClinieSync home">
+          <Logo size={30} /><b>ClinieSync</b>
         </button>
-        <nav className="tabs" aria-label="Main">
+        <nav className="tabs" ref={tabsRef} aria-label="Main">
+          {ink && <span className="tab-ink" style={{ width: ink.w, transform: `translateX(${ink.x}px)` }} aria-hidden="true" />}
           {tabs.map(t => (
-            <button key={t.id} className={`tab ${tab === t.id ? "active" : ""}`} onClick={() => nav(t.id)}
+            <button key={t.id} className={`tab ${tab === t.id ? "active" : ""}`} onClick={() => go(t.id)}
               aria-current={tab === t.id ? "page" : undefined}>
               <t.icon size={16} /><span>{t.label}</span>
             </button>
@@ -66,12 +97,34 @@ export function Header({ tab }: { tab: TabId }) {
             </div>
           )}
           <div className="user-pill">
-            <span className={`role-dot ${user.role}`} />
-            <span className="user-text"><b>{user.display_name}</b><small>{ROLE_LABEL[user.role]}</small></span>
+            <span className={`user-avatar ${user.role}`} aria-hidden="true">{initials(user.display_name)}</span>
+            <span className="user-text"><b>{user.display_name.replace(/\s*\(.*\)\s*$/, "")}</b><small>{ROLE_LABEL[user.role]}</small></span>
             <button className="btn ghost icon" onClick={logout} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
           </div>
+          <button className="btn ghost icon menu-btn" onClick={() => setMenu(m => !m)} aria-expanded={menu} aria-controls="app-menu"
+            aria-label={menu ? "Close menu" : "Open menu"}>{menu ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
       </div>
+      <div className="header-progress" aria-hidden="true"><span style={{ transform: `scaleX(${p})` }} /></div>
+
+      {/* phones and small tablets: every section in one sheet */}
+      {menu && <>
+        <div className="menu-scrim" onClick={() => setMenu(false)} />
+        <nav id="app-menu" className="menu-sheet" aria-label="Main">
+          <div className="menu-grid">
+            {tabs.map((t, i) => (
+              <button key={t.id} className={`menu-item ${tab === t.id ? "active" : ""}`} onClick={() => go(t.id)}
+                aria-current={tab === t.id ? "page" : undefined} style={{ "--d": `${i * 30}ms` } as React.CSSProperties}>
+                <span className="menu-icon"><t.icon size={18} /></span>{t.label}</button>
+            ))}
+          </div>
+          <div className="menu-foot">
+            <span className={`user-avatar ${user.role}`} aria-hidden="true">{initials(user.display_name)}</span>
+            <span className="user-text"><b>{user.display_name.replace(/\s*\(.*\)\s*$/, "")}</b><small>{ROLE_LABEL[user.role]}</small></span>
+            <button className="btn sm" onClick={logout}><LogOut size={15} />Sign out</button>
+          </div>
+        </nav>
+      </>}
     </header>
   );
 }

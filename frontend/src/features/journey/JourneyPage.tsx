@@ -1,10 +1,10 @@
 // Patient Journey: registry search -> patient header (3D) -> longitudinal timeline, measurements, visits, documents.
 import { useEffect, useState } from "react";
-import { Baby, CalendarClock, FileText, Link2, MessageSquareText, Phone, Search, Sparkles } from "lucide-react";
+import { Baby, CalendarClock, FileText, Link2, MessageSquareText, Phone, Search, Sparkles, UserRound } from "lucide-react";
 import { api } from "../../api/client";
 import { useApp } from "../../app/context";
 import { Swimlane, TimelineData, TLEvent } from "../../charts/Swimlane";
-import { Card3D, DataTable, Drawer, ErrorNote, fmtDate, LANG_LABEL, Loading, Seg, useAsync } from "../../ui/components";
+import { DataTable, Drawer, EmptyState, ErrorNote, fmtDate, LANG_LABEL, Loading, Seg, useAsync } from "../../ui/components";
 import { MeasureMultiples, Series } from "./MeasureMultiples";
 
 interface PatientRow { patient_id: string; name: string; age: number; village: string; facility: string; language: string; status: string; edd: string; anc_visits: number; open_followups: number }
@@ -18,6 +18,20 @@ interface Profile {
 }
 const STATUS_LABEL: Record<string, string> = { antenatal: "Antenatal", delivered: "Delivered (< 6 w)", postnatal_closed: "Postnatal completed", no_recent_contact: "No recent contact" };
 const STATUS_TONE: Record<string, string> = { antenatal: "brand", delivered: "info", postnatal_closed: "neutral", no_recent_contact: "warn" };
+const initials = (n: string) => n.split(" ").map(w => w[0]).slice(0, 2).join("");
+
+// where she is in the pregnancy: week of 40 with trimester marks (GA is computed by the backend at the reference date)
+function PregnancyProgress({ ga }: { ga: number | null }) {
+  if (ga === null || ga === undefined) return null;
+  const w = Math.min(42, Math.max(0, ga)), tri = w < 13 ? "1st" : w < 28 ? "2nd" : "3rd";
+  return (
+    <div className="preg">
+      <div className="preg-top"><b>Week {Math.round(w)}</b><span>of 40 · {tri} trimester</span></div>
+      <div className="preg-track"><span className="preg-fill" style={{ width: `${Math.min(100, (w / 40) * 100)}%` }} />
+        <i style={{ left: "32.5%" }} /><i style={{ left: "70%" }} /></div>
+      <div className="preg-scale"><span>LMP</span><span style={{ left: "32.5%" }}>13 w</span><span style={{ left: "70%" }}>28 w</span><span>EDD</span></div>
+    </div>);
+}
 
 export function JourneyPage() {
   const { user, patientId, setPatientId, nav } = useApp();
@@ -36,20 +50,24 @@ export function JourneyPage() {
         <p>One longitudinal mother–baby timeline, linked across EHR exports, registers and lab PDFs.</p></div></div>
       <div className="journey-grid">
         <aside className="card patient-list">
-          <div className="search"><Search size={16} /><input className="input" placeholder="Name, CS-ID, RCH ID or village" value={q} onChange={e => setQ(e.target.value)} /></div>
+          <label className="search-pill"><Search size={16} /><input placeholder="Name, CS-ID, RCH ID or village" value={q} onChange={e => setQ(e.target.value)} aria-label="Search patients" /></label>
           <select className="input" value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter by status">
             <option value="">All statuses</option>{Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           {list.loading && !list.data ? <Loading /> : (
             <ul>{list.data?.patients.map(p => (
-              <li key={p.patient_id}><button className={p.patient_id === patientId ? "active" : ""} onClick={() => setPatientId(p.patient_id)}>
-                <span className="pl-name">{p.name}</span>
-                <span className="pl-meta">{p.patient_id} · {p.age} y · {LANG_LABEL[p.language]}</span>
-                <span className="pl-tags"><span className={`badge ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>
-                  {p.open_followups > 0 && <span className="badge warn">{p.open_followups} open</span>}</span>
-              </button></li>))}</ul>)}
+              <li key={p.patient_id}><button className={p.patient_id === patientId ? "active" : ""} onClick={() => setPatientId(p.patient_id)}
+                aria-current={p.patient_id === patientId ? "true" : undefined}>
+                <span className={`pl-avatar s-${p.status}`}>{initials(p.name)}</span>
+                <span className="pl-text">
+                  <span className="pl-name">{p.name}{p.open_followups > 0 && <span className="pl-open" title={`${p.open_followups} open follow-ups`}>{p.open_followups}</span>}</span>
+                  <span className="pl-meta">{p.patient_id} · {p.age} y · {LANG_LABEL[p.language]}</span>
+                  <span className={`pl-status s-${p.status}`}><i />{STATUS_LABEL[p.status]}</span>
+                </span>
+              </button></li>))}
+              {!list.data?.patients.length && <li><EmptyState title="No patients found" text="Try a different name, ID or status." /></li>}</ul>)}
         </aside>
         <section>{patientId ? <PatientDetail key={patientId} pid={patientId} canClinical={user.role === "doctor"}
-          onAsk={(t) => nav("ask", { patientId, askText: t })} /> : <div className="empty card">Select a patient</div>}</section>
+          onAsk={(t) => nav("ask", { patientId, askText: t })} /> : <div className="card"><EmptyState icon={<UserRound size={26} />} title="Select a patient" text="Pick a mother from the list to see her linked journey." /></div>}</section>
       </div>
     </div>
   );
@@ -70,9 +88,9 @@ function PatientDetail({ pid, canClinical, onAsk }: { pid: string; canClinical: 
 
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card3D className="patient-head" tilt={3}>
+      <section className="patient-head">
         <div className="ph-main">
-          <div className="avatar">{p.name.split(" ").map(w => w[0]).slice(0, 2).join("")}</div>
+          <div className="avatar">{initials(p.name)}</div>
           <div>
             <h2>{p.name}</h2>
             <div className="small muted">{p.patient_id} · RCH {p.rch_id || "-"} · {p.age} y · prefers <b>{LANG_LABEL[p.language]}</b> · {p.village}, {p.facility}</div>
@@ -87,6 +105,7 @@ function PatientDetail({ pid, canClinical, onAsk }: { pid: string; canClinical: 
             <button className="btn sm" onClick={() => onAsk("Show the patient's last 3 visits")}><MessageSquareText size={15} />Last 3 visits</button>
           </div>
         </div>
+        {pr && <PregnancyProgress ga={pr.ga_today_weeks} />}
         {pr && (
           <div className="ph-facts">
             <div><span>G / P</span><b>G{pr.gravida} P{pr.parity}</b></div>
@@ -102,9 +121,9 @@ function PatientDetail({ pid, canClinical, onAsk }: { pid: string; canClinical: 
             <span className="muted"> · consent: {Object.entries(p.contact.consent).filter(([, v]) => v).map(([k]) => k).join(", ") || "none"}</span></span>}
           {p.children.map(c => <span key={c.child_id} className="small"><Baby size={13} /> {c.name} · {c.sex} · born {fmtDate(c.dob)} · {c.birth_weight_g} g</span>)}
         </div>
-      </Card3D>
+      </section>
 
-      <div className="card">
+      <div className="card journey-views">
         <div className="card-head">
           <Seg value={view} onChange={setView} ariaLabel="Journey view" options={[
             { value: "timeline", label: <><CalendarClock size={14} /> Timeline</> },

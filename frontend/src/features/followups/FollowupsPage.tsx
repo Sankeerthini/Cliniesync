@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { AlarmClock, BellRing, Check, CheckCheck, Clock, Hourglass, MailCheck, PhoneCall, Send, ShieldCheck, Undo2, X } from "lucide-react";
 import { api } from "../../api/client";
 import { ChartCard } from "../../charts/ChartRenderer";
-import { DataTable, ErrorNote, fmtDate, LANG_LABEL, Loading, Modal, Seg, StatTile, useAsync } from "../../ui/components";
+import { DataTable, EmptyState, ErrorNote, fmtDate, LANG_LABEL, Loading, Modal, Seg, StatTile, useAsync } from "../../ui/components";
 
 interface FU { followup_id: string; patient_id: string; patient: string; followup_type: string; due_on: string; days_past_due: number; status: string;
   facility: string; language: string; phone: string; caregiver: string | null; consent_sms: boolean; consent_whatsapp: boolean; workflow_state: string;
@@ -87,9 +87,9 @@ export function FollowupsPage() {
               <option value="">All types</option>{["ANC visit", "PNC visit", "Immunization", "Investigation review"].map(t => <option key={t}>{t}</option>)}</select>
             <input className="input" style={{ maxWidth: 240 }} placeholder="Search patient" value={q} onChange={e => setQ(e.target.value)} />
           </div>
-          <div className="bulk-bar">
+          <div className={`bulk-bar ${sel.size ? "has-sel" : ""}`}>
             <label className="check-row"><input type="checkbox" checked={allSelected} onChange={() => setSel(allSelected ? new Set() : new Set(rows.slice(0, 50).map(r => r.followup_id)))} />Select top 50</label>
-            <span className="small muted">{sel.size} selected</span><span className="spacer" />
+            <span className="sel-count"><b>{sel.size}</b> selected</span><span className="spacer" />
             <Seg value={channel} onChange={setChannel} ariaLabel="Channel" options={[{ value: "sms", label: "SMS" }, { value: "whatsapp", label: "WhatsApp" }]} />
             <Seg value={recipient} onChange={setRecipient} ariaLabel="Recipient" options={[{ value: "patient", label: "Patient" }, { value: "caregiver", label: "Caregiver" }]} />
             <select className="input" style={{ width: 200 }} value={lang} onChange={e => setLang(e.target.value)} aria-label="Language">
@@ -110,8 +110,8 @@ export function FollowupsPage() {
               { key: "workflow_state", label: "Coordination", render: r => <>{WF[r.workflow_state] || r.workflow_state}{r.contact_attempts > 0 && <div className="tiny muted">{r.contact_attempts} attempt(s)</div>}</> },
               { key: "documented_instruction", label: "Documented instruction", render: r => <span className="small clamp" title={r.documented_instruction}>{r.documented_instruction}</span> },
               { key: "actions", label: "", render: r => <div className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
-                <button className="btn sm" onClick={e => { e.stopPropagation(); setContactFor(r); }} title="Log contact"><PhoneCall size={13} /></button>
-                <button className="btn sm" onClick={e => { e.stopPropagation(); setOverrideFor(r); }} title="Override status"><Undo2 size={13} /></button></div> },
+                <button className="btn icon-sm" onClick={e => { e.stopPropagation(); setContactFor(r); }} title="Log contact" aria-label={`Log contact for ${r.patient}`}><PhoneCall size={14} /></button>
+                <button className="btn icon-sm" onClick={e => { e.stopPropagation(); setOverrideFor(r); }} title="Override status" aria-label={`Override status for ${r.patient}`}><Undo2 size={14} /></button></div> },
             ]} />)}
         </>)}
 
@@ -148,7 +148,7 @@ function Outbox({ messages, reload }: { messages: Msg[]; reload: () => void }) {
       {filter === "draft" && drafts.length > 0 && <button className="btn primary sm" onClick={approveAll}><CheckCheck size={14} />I have reviewed all - approve &amp; send {drafts.length}</button>}
     </div>
     <ErrorNote error={err} />
-    {!shown.length ? <div className="empty">No messages here. Select follow-ups in the queue and click “Draft reminders”.</div> : (
+    {!shown.length ? <EmptyState icon={<MailCheck size={26} />} title="No messages here" text="Select follow-ups in the queue and click “Draft reminders”. Nothing is sent until you approve it." /> : (
       <><div className="msg-grid">{shown.slice(0, limit).map(m => (
         <div key={m.message_id} className="msg-card card">
           <div className="row" style={{ gap: 6 }}>

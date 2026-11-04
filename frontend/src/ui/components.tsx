@@ -1,28 +1,19 @@
 // Shared UI primitives for ClinieSync.
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ArrowUp, X } from "lucide-react";
 
-/* ---------------------------------------------------------------- 3D tilt card */
-export function Card3D({ children, className = "", tilt = 5, style, onClick }:
+/* ---------------------------------------------------------------- glass card */
+// A calm surface: soft light follows the pointer and the card lifts on hover. (It used to tilt in 3D; on data-heavy
+// screens that read as wobble, so `tilt` is kept only for call-site compatibility.)
+export function Card3D({ children, className = "", style, onClick }:
   { children: ReactNode; className?: string; tilt?: number; style?: React.CSSProperties; onClick?: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const move = (e: React.PointerEvent) => {
-    const el = ref.current; if (!el || reduce || e.pointerType === "touch") return;
-    const r = el.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
-    el.style.setProperty("--ry", `${(px - .5) * tilt}deg`);
-    el.style.setProperty("--rx", `${(.5 - py) * tilt}deg`);
-    el.style.setProperty("--mx", `${px * 100}%`); el.style.setProperty("--my", `${py * 100}%`);
-    el.classList.add("tilting");
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "touch") return;
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`); e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
   };
-  const leave = () => {
-    const el = ref.current; if (!el) return;
-    el.style.setProperty("--rx", "0deg"); el.style.setProperty("--ry", "0deg"); el.classList.remove("tilting");
-  };
-  return <div ref={ref} className={`card-3d ${className}`} style={style} onPointerMove={move} onPointerLeave={leave}
-    onClick={onClick}>{children}</div>;
+  return <div className={`card-3d ${className}`} style={style} onPointerMove={move} onClick={onClick}>{children}</div>;
 }
 
 /* ---------------------------------------------------------------- markdown (tiny, safe: no HTML injection) */
@@ -63,7 +54,7 @@ export function DataTable({ columns, rows, max = 200, onRowClick, selectable, se
   onRowClick?: (row: any) => void; selectable?: boolean; selected?: Set<string>; onToggle?: (id: string) => void;
   rowKey?: string;
 }) {
-  if (!rows.length) return <div className="empty">No rows</div>;
+  if (!rows.length) return <EmptyState title="Nothing to show" text="No rows match the current view." />;
   return (
     <div className="table-wrap">
       <table className="data">
@@ -108,7 +99,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   // Portal to <body> so modals are never trapped under sticky/animated stacking contexts.
   return createPortal(
     <div className="overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className={`modal fade-in ${wide ? "wide" : ""}`} onClick={e => e.stopPropagation()}>
+      <div className={`modal ${wide ? "wide" : ""}`} onClick={e => e.stopPropagation()}>
         <div className="modal-head"><h2>{title}</h2><span className="spacer" />
           <button className="btn ghost icon" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
         <div className="modal-body">{children}</div>
@@ -117,10 +108,15 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
 }
 
 export function Drawer({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    if (open) window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [open, onClose]);
   if (!open) return null;
   return createPortal(
-    <div className="overlay right" onClick={onClose}>
-      <aside className="drawer fade-in" onClick={e => e.stopPropagation()}>
+    <div className="overlay right" onClick={onClose} role="dialog" aria-modal="true">
+      <aside className="drawer" onClick={e => e.stopPropagation()}>
         <div className="modal-head"><h3>{title}</h3><span className="spacer" />
           <button className="btn ghost icon" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
         <div className="modal-body">{children}</div>
@@ -129,17 +125,28 @@ export function Drawer({ open, onClose, title, children }: { open: boolean; onCl
 }
 
 /* ---------------------------------------------------------------- stat tile */
+// Same tile as the home page: icon, a number that counts up, label, optional hint.
 export function StatTile({ label, value, unit, hint, icon, tone = "brand" }:
   { label: string; value: ReactNode; unit?: string; hint?: ReactNode; icon?: ReactNode; tone?: "brand" | "blue" | "violet" | "coral" }) {
+  const counted = useCountUp(typeof value === "number" ? value : null);
+  const shown = typeof value === "number" ? counted : value;
   return (
-    <Card3D className={`stat tone-${tone}`}>
-      <div className="row" style={{ gap: 10 }}>
-        {icon && <span className="stat-icon lift">{icon}</span>}
-        <span className="stat-label">{label}</span>
-      </div>
-      <div className="stat-value">{value ?? "-"}{unit && value !== null && value !== undefined && <span className="stat-unit">{unit}</span>}</div>
-      {hint && <div className="stat-hint">{hint}</div>}
-    </Card3D>
+    <div className="tile stat">
+      {icon && <span className="tile-top"><span className={`tile-icon tone-${tone}`}>{icon}</span></span>}
+      <span className="tile-value num">{shown ?? "-"}{unit && value !== null && value !== undefined && value !== "-" && <small>{unit}</small>}</span>
+      <span className="tile-label">{label}</span>
+      {hint && <span className="stat-hint">{hint}</span>}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- empty state */
+export function EmptyState({ icon, title, text, action }: { icon?: ReactNode; title: string; text?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="empty-state">
+      {icon && <span className="empty-icon">{icon}</span>}
+      <b>{title}</b>{text && <p>{text}</p>}{action}
+    </div>
   );
 }
 
@@ -168,7 +175,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
 }
 
 export function Loading({ label = "Loading" }: { label?: string }) {
-  return <div className="empty"><span className="spin" /> <span style={{ marginLeft: 8 }}>{label}…</span></div>;
+  return <div className="loading-state" role="status"><span className="spin" /><span>{label}…</span></div>;
 }
 
 export function ErrorNote({ error }: { error: string | null }) {
@@ -181,4 +188,61 @@ export function fmtDate(iso?: string | null) {
   if (!iso) return "-";
   const d = new Date(iso + (iso.length === 10 ? "T00:00:00" : ""));
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/* ---------------------------------------------------------------- page chrome shared by sign-in and the app */
+// living background: slow aurora blobs over a faint dot grid
+export function Aurora() {
+  return <div className="aurora" aria-hidden="true"><i className="b1" /><i className="b2" /><i className="b3" /><i className="grid-dots" /></div>;
+}
+
+export const prefersReducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// whole-page scroll position: p = 0..1, y = px, max = scrollable px.
+// Also re-measures when the page grows or shrinks (data loading in, tabs switching), not only on scroll.
+export function usePageScroll() {
+  const [s, setS] = useState({ p: 0, y: 0, max: 0 });
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      raf = 0; const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight), y = window.scrollY;
+      setS(o => (o.y === y && o.max === max ? o : { p: max > 0 ? Math.min(1, y / max) : 0, y, max }));
+    };
+    const on = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const ro = new ResizeObserver(on); ro.observe(document.getElementById("root") || document.body);
+    update(); window.addEventListener("scroll", on, { passive: true }); window.addEventListener("resize", on);
+    return () => { ro.disconnect(); window.removeEventListener("scroll", on); window.removeEventListener("resize", on); if (raf) cancelAnimationFrame(raf); };
+  }, []);
+  return s;
+}
+
+// back to top, with a ring that fills as you scroll
+// appears once you are a little way down any page long enough to need it
+export function BackToTop() {
+  const { p, y, max } = usePageScroll();
+  const RING = 2 * Math.PI * 23;
+  const show = max > 240 && y > Math.min(320, max * 0.4);
+  return (
+    <button className={`to-top ${show ? "show" : ""}`} aria-label="Back to top" tabIndex={show ? 0 : -1} aria-hidden={!show}
+      onClick={() => window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" })}>
+      <svg className="ring-svg" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="23" />
+        <circle className="ring" cx="26" cy="26" r="23" strokeDasharray={RING} strokeDashoffset={RING * (1 - p)} /></svg>
+      <ArrowUp size={19} />
+    </button>
+  );
+}
+
+// animates a number from 0 to `to` once it is known (keeps the decimals of the target)
+export function useCountUp(to: number | null | undefined, ms = 900) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (to == null) return;
+    if (prefersReducedMotion()) { setV(to); return; }
+    let raf = 0; const t0 = performance.now();
+    const tick = (now: number) => { const k = Math.min(1, (now - t0) / ms); setV(to * (1 - Math.pow(1 - k, 3))); if (k < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf);
+  }, [to, ms]);
+  if (to == null) return null;
+  const dp = Number.isInteger(to) ? 0 : 1;
+  return v.toLocaleString("en-IN", { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }

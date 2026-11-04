@@ -50,7 +50,9 @@ function pickSelected(pts: Pt[]) {
   return best;
 }
 
-export function GlobeCanvas({ progress, reduce }: { progress: number; reduce: boolean }) {
+// `avoid` is the hero copy: before the zoom, the globe sits in the free space beside it (wide screens) or below it
+// (portrait), so it never overlaps the text whatever the screen size.
+export function GlobeCanvas({ progress, reduce, avoid }: { progress: number; reduce: boolean; avoid?: React.RefObject<HTMLElement> }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const prog = useRef(progress);
   prog.current = progress;
@@ -66,11 +68,25 @@ export function GlobeCanvas({ progress, reduce }: { progress: number; reduce: bo
     const onMove = (e: PointerEvent) => { ptr.tx = (e.clientX / window.innerWidth) * 2 - 1; ptr.ty = (e.clientY / window.innerHeight) * 2 - 1; };
     window.addEventListener("pointermove", onMove);
     let raf = 0, t0 = performance.now(), w = 0, h = 0;
+    const home = { x: 0, y: 0, r: 0 };                             // globe position before the zoom
+    const place = () => {
+      const c = avoid?.current?.getBoundingClientRect(), k = cv.getBoundingClientRect();
+      // content column, mirrors --wrap / --gutter in app.css
+      const gutter = Math.min(40, Math.max(16, w * 0.04)), wrap = w >= 1600 ? 1320 : 1180;
+      const right = Math.min(w - gutter, (w + wrap) / 2) - (w > 900 && w - (w + wrap) / 2 < 150 ? 130 : 0);  // leave room for the chapter dots
+      if (!c || !c.width) { home.x = w / 2; home.y = h * 0.55; home.r = Math.min(w, h) * 0.3; return; }
+      const side = right - (c.right - k.left), below = h - (c.bottom - k.top) - 76;               // 76: "scroll to explore" hint
+      if (side >= 220) { home.x = c.right - k.left + side / 2; home.y = h * 0.52; home.r = Math.min(side * 0.42, h * 0.34, 400); }
+      else { home.x = w / 2; home.r = Math.max(48, Math.min(w * 0.38, below * 0.44)); home.y = h - 76 - Math.max(below / 2, home.r + 8); }
+    };
     const resize = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       w = cv.clientWidth; h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      place();
     };
     resize(); window.addEventListener("resize", resize);
+    const ro = avoid?.current ? new ResizeObserver(place) : null;  // web fonts landing change the copy's height
+    if (ro && avoid?.current) ro.observe(avoid.current);
     const proj: { X: number; Y: number; Z: number }[] = pts.map(() => ({ X: 0, Y: 0, Z: 0 }));
 
     const draw = (now: number) => {
@@ -81,14 +97,14 @@ export function GlobeCanvas({ progress, reduce }: { progress: number; reduce: bo
       ctx.clearRect(0, 0, w, h);
       if (fade <= 0) { raf = requestAnimationFrame(draw); return; }
       const wide = w > 900;
-      const cx = lerp(wide ? w * 0.68 : w * 0.5, w * 0.5, zk);
-      const cy = lerp(wide ? h * 0.52 : h * 0.62, h * 0.5, zk);
+      const cx = lerp(home.x, w * 0.5, zk);
+      const cy = lerp(home.y, h * 0.5, zk);
       const auto = reduce ? 0.6 : (now - t0) * 0.00012 + p * 2.2;
       const ry0 = auto + ptr.x * 0.5;
       const tyNear = tY + 2 * Math.PI * Math.round((ry0 - tY) / (2 * Math.PI));
       const ry = lerp(ry0, tyNear, zk), rx = lerp(0.28 + ptr.y * 0.3, tX, zk);
       const base = Math.min(w, h) * (wide ? 0.34 : 0.3);
-      const scale = base * lerp(1, 16, zk * zk);
+      const scale = lerp(home.r, base * 16, zk * zk);
       const cyR = Math.cos(ry), syR = Math.sin(ry), cxR = Math.cos(rx), sxR = Math.sin(rx);
       for (let i = 0; i < pts.length; i++) {
         const q = pts[i];
@@ -139,8 +155,8 @@ export function GlobeCanvas({ progress, reduce }: { progress: number; reduce: bo
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); window.removeEventListener("pointermove", onMove); };
-  }, [reduce]);
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); window.removeEventListener("resize", resize); window.removeEventListener("pointermove", onMove); };
+  }, [reduce, avoid]);
   return <canvas ref={ref} className="intro-canvas" aria-hidden="true" />;
 }
 
