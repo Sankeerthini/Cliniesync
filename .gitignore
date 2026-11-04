@@ -13,3 +13,4 @@ frontend/dist/
 *.deb
 *.tsbuildinfo
 .DS_Store
+data/logs/
