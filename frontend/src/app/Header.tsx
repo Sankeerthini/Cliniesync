@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  BarChart3, BellRing, ClipboardCheck, Cpu, Database, Home, LogOut, Menu, MessageSquareText, Route, ShieldCheck, Target, X,
+  BarChart3, BellRing, ClipboardCheck, Cpu, Database, Home, LogOut, Menu, MessageSquareText, Route, Search, ShieldCheck, Target, X,
 } from "lucide-react";
 import type { Role } from "../api/client";
 import { usePageScroll } from "../ui/components";
+import { CommandPalette, isMac } from "./CommandPalette";
 import { TabId, useApp } from "./context";
 
 export const TABS: { id: TabId; label: string; icon: typeof Home; roles: Role[] }[] = [
@@ -41,6 +42,12 @@ export function Header({ tab }: { tab: TabId }) {
   const llmOk = health?.llm.available;
   const { p, y } = usePageScroll();
   const [menu, setMenu] = useState(false);
+  const [palette, setPalette] = useState(false);
+  // ⌘K / Ctrl+K opens the command palette from anywhere
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setMenu(false); setPalette(p => !p); } };
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const tabsRef = useRef<HTMLElement>(null);
   const [ink, setInk] = useState<{ x: number; w: number } | null>(null);
 
@@ -81,6 +88,8 @@ export function Header({ tab }: { tab: TabId }) {
           ))}
         </nav>
         <div className="header-right">
+          <button className="search-btn" onClick={() => setPalette(true)} aria-label="Search and commands" title={`Search patients, pages or ask (${isMac ? "⌘" : "Ctrl+"}K)`}>
+            <Search size={16} /><span className="search-label">Search</span><kbd>{isMac ? "⌘" : "Ctrl"} K</kbd></button>
           {health && (
             <div className="sys-pill" tabIndex={0} aria-label="System status">
               <span className={`dot ${llmOk ? "ok" : "warn"}`} /><Cpu size={14} />
@@ -111,6 +120,7 @@ export function Header({ tab }: { tab: TabId }) {
       {menu && <>
         <div className="menu-scrim" onClick={() => setMenu(false)} />
         <nav id="app-menu" className="menu-sheet" aria-label="Main">
+          <button className="menu-search" onClick={() => { setMenu(false); setPalette(true); }}><Search size={17} />Search patients, pages or ask…</button>
           <div className="menu-grid">
             {tabs.map((t, i) => (
               <button key={t.id} className={`menu-item ${tab === t.id ? "active" : ""}`} onClick={() => go(t.id)}
@@ -125,6 +135,7 @@ export function Header({ tab }: { tab: TabId }) {
           </div>
         </nav>
       </>}
+      <CommandPalette open={palette} onClose={() => setPalette(false)} tabs={tabs} />
     </header>
   );
 }

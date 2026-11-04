@@ -36,6 +36,12 @@ export default function App() {
     load(); const id = setInterval(load, 30000); return () => clearInterval(id);
   }, [user]);
 
+  // browser tab title follows the page ("Follow-ups · ClinieSync")
+  useEffect(() => {
+    const label = user ? TABS.find(t => t.id === tab)?.label : null;
+    document.title = label && tab !== "home" ? `${label} · ClinieSync` : "ClinieSync";
+  }, [tab, user]);
+
   const nav = useCallback((t: TabId, opts?: { patientId?: string; askText?: string }) => {
     if (opts?.patientId) setPatientId(opts.patientId);
     if (opts?.askText) setPendingAsk(opts.askText);
