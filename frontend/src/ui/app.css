@@ -585,6 +585,7 @@ table.matrix tr.me td { background: rgba(20, 163, 160, .08); }
   border: 1px solid rgba(255, 255, 255, .9); box-shadow: 0 1px 2px rgba(15, 31, 38, .05), 0 22px 44px -30px rgba(15, 31, 38, .45), inset 0 0 0 1px rgba(15, 31, 38, .05); }
 .answer.loading { display: flex; flex-direction: column; gap: 10px; color: var(--ink-500); max-width: 640px; }
 .loading-line { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 500; color: var(--ink-600); margin-bottom: 4px; }
+.loading-wait { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-500); max-width: 62ch; animation: fadeIn .4s var(--ease-out); }
 .sk { display: block; height: 11px; border-radius: 999px; background: linear-gradient(100deg, rgba(15, 31, 38, .06) 30%, rgba(15, 31, 38, .12) 50%, rgba(15, 31, 38, .06) 70%) 0 0 / 300% 100%;
   animation: shimmer 1.3s linear infinite; }
 .answer.blocked { background: linear-gradient(170deg, #fff, #fff5f5); box-shadow: 0 22px 44px -30px rgba(166, 27, 27, .35), inset 0 0 0 1px rgba(208, 59, 59, .2); }

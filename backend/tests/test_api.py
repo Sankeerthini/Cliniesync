@@ -254,3 +254,19 @@ def test_read_only_sql_connection_does_not_poison_pool(client, doc):
     c.close()
     r = client.post("/api/query", headers=doc, json={"text": "Drop off rate trends"})
     assert r.status_code == 200 and r.json()["status"] == "pending_review"
+
+
+def test_query_job_is_polled_and_private(client, doc, coord):
+    import time
+    pid = a_patient(client, doc)
+    r = client.post("/api/query/jobs", headers=doc, json={"text": "Show the patient's last 3 visits", "patient_id": pid})
+    assert r.status_code == 202
+    job = r.json()["job_id"]
+    assert client.get(f"/api/query/jobs/{job}", headers=coord).status_code == 404     # only the asker can read it
+    for _ in range(100):
+        j = client.get(f"/api/query/jobs/{job}", headers=doc).json()
+        if j["status"] == "done":
+            break
+        time.sleep(0.1)
+    assert j["status"] == "done" and j["result"]["intent"] == "patient_retrieval" and j["result"]["response_id"]
+    assert client.get("/api/query/jobs/nope", headers=doc).status_code == 404

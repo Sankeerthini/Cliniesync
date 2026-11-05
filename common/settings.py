@@ -50,6 +50,9 @@ class Settings:
     llm_sql_model: str = field(default_factory=lambda: os.getenv("LLM_SQL_MODEL", ""))  # defaults to llm_model
     llm_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", "ollama"))
     llm_timeout_s: float = field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT_S", "60")))
+    # NeMo "self check" rails ask the model about every question and answer as well - two extra LLM calls per request.
+    # Worth it on a GPU; on a small CPU-only server (free hosting) they triple the wait, so they can be switched off there.
+    llm_self_check: bool = field(default_factory=lambda: _bool("LLM_SELF_CHECK", True))
 
     # ---- retrieval ----------------------------------------------------------
     vector_backend: str = field(default_factory=lambda: os.getenv("VECTOR_BACKEND", "auto"))  # auto|chroma|tfidf

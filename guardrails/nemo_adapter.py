@@ -43,6 +43,7 @@ class NemoGuardrails:
         if not s.use_nemo_guardrails:
             self.status = "disabled"
             return
+        llm_available = llm_available and s.llm_self_check
         with self._lock:
             if self._rails is not None and self.llm_rails_active == llm_available:
                 return
@@ -76,9 +77,11 @@ class NemoGuardrails:
                 "input_flows": flows_in, "output_flows": flows_out}
 
     # ------------------------------------------------------------------ checks
-    def _run(self, messages: list[dict], timeout: float = 30.0) -> dict:
+    def _run(self, messages: list[dict], timeout: float | None = None) -> dict:
         if self._rails is None:
             return {"status": "skipped", "rail": None}
+        # a self-check is one model call - give it the same budget as any other call
+        timeout = timeout or (get_settings().llm_timeout_s if self.llm_rails_active else 30.0)
         fut = asyncio.run_coroutine_threadsafe(self._rails.check_async(messages), self._loop)
         try:
             res = fut.result(timeout=timeout)

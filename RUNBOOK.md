@@ -1,9 +1,37 @@
 # Running the ClinieSync demo
 
-Everything needed is in this folder: the app, the built UI, the synthetic data and a ready Python environment for Linux.
-You add a few tools to the machine once, then start it with one command - and the public link stays the same every time.
+Two ways to give people a link: a free Hugging Face Space that runs on its own, or your own machine with a tunnel.
+Both keep the same link every time.
 
-## Once per machine
+## Public link on Hugging Face Spaces (no computer needs to stay on)
+
+The whole app - including the open-source model (Ollama + qwen2.5:7b-instruct) - runs in one free Docker Space.
+Everything it needs is in [deploy/huggingface/](deploy/huggingface/).
+
+1. Sign in at https://huggingface.co with the team account → **New Space**: Space SDK **Docker** → **Blank**,
+   hardware **CPU basic (free)**, visibility **Public** (a private Space asks every visitor to log in).
+2. While the GitHub repo is private: create a read-only GitHub token (Settings → Developer settings →
+   Fine-grained tokens → this repo only → *Contents: Read-only*) and add it in the Space under
+   **Settings → Variables and secrets → New secret** as `GITHUB_TOKEN`.
+3. In the same place add the secrets `SECRET_KEY` (any long random text), and for e-mail `SMTP_HOST`,
+   `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_FROM_NAME` (values as in `.env`).
+4. **Files → Add file → Create a new file**, name it `Dockerfile`, paste the contents of
+   [deploy/huggingface/Dockerfile](deploy/huggingface/Dockerfile), **Commit**.
+5. The Space builds (20-30 min the first time: it downloads the model) and then shows the app.
+   The link is `https://<account>-<space>.hf.space` and does not change.
+
+- **Updating after a GitHub change:** Space → Settings → **Factory rebuild**.
+- **It runs on a small CPU**, so AI-written answers take one to two minutes; the page waits for them and says so.
+  Record-built answers (tables, counts, charts) stay instant. The two extra LLM self-check calls per question are
+  off there (`LLM_SELF_CHECK=false`); the deterministic NeMo rails still check every question and answer.
+- **Sleep:** a free Space sleeps after 48 h without visitors and wakes on the next visit (a minute or two).
+  The GitHub workflow *Keep demo awake* visits it every 6 h - set the repository variable `SPACE_URL` to the link.
+- The data is regenerated on every rebuild/restart, so the demo always starts clean.
+- Logs: Space → **Logs** (Build / Container).
+
+## Running it on your own machine
+
+### Once per machine
 
 1. **Ollama + the model** (AI-written summaries; the app also works without it)
    ```bash
@@ -21,7 +49,7 @@ You add a few tools to the machine once, then start it with one command - and th
 
 Turn off automatic reboots for system updates on this machine during the hackathon.
 
-## Every time you run the demo
+### Every time you run the demo
 
 Use the normal **Terminal** app (not the VS Code terminal - closing VS Code would stop the demo):
 
