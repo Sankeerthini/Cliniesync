@@ -81,7 +81,7 @@ export function AskPage() {
               <div className="bubble-q"><span>{t.mode === "voice" && <Mic size={13} />} {t.q}</span></div>
               {t.loading && <div className="answer loading" aria-live="polite">
                 <div className="loading-line"><span className="spin" />{STAGE_TEXT[Math.max(0, stage)]}…</div>
-                {(t.waited ?? 0) >= 6 && <p className="loading-wait">The open-source model is writing this answer ({t.waited}s). On our free server that can take a minute or two - keep this page open and it will appear here.</p>}
+                {(t.waited ?? 0) >= 6 && <p className="loading-wait">The open-source model is writing this answer ({t.waited}s). Longer answers can take a minute - keep this page open and it will appear here.</p>}
                 <span className="sk" style={{ width: "92%" }} /><span className="sk" style={{ width: "78%" }} /><span className="sk" style={{ width: "56%" }} />
               </div>}
               {t.error && <ErrorNote error={t.error} />}

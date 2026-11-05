@@ -1,33 +1,33 @@
 # Running the ClinieSync demo
 
-Two ways to give people a link: a free Hugging Face Space that runs on its own, or your own machine with a tunnel.
+Two ways to give people a link: a Google Cloud server that runs on its own, or your own machine with a tunnel.
 Both keep the same link every time.
 
-## Public link on Hugging Face Spaces (no computer needs to stay on)
+## Public link on a Google Cloud server (no one's computer needs to stay on)
 
-The whole app - including the open-source model (Ollama + qwen2.5:7b-instruct) - runs in one free Docker Space.
-Everything it needs is in [deploy/huggingface/](deploy/huggingface/).
+A small Ubuntu server on Google Cloud runs the same app and model (Ollama + qwen2.5:7b-instruct) around the clock.
+The free trial ($300 credit, 90 days) covers it; nothing is charged unless the account is upgraded to paid.
 
-1. Sign in at https://huggingface.co with the team account → **New Space**: Space SDK **Docker** → **Blank**,
-   hardware **CPU basic (free)**, visibility **Public** (a private Space asks every visitor to log in).
-2. While the GitHub repo is private: create a read-only GitHub token (Settings → Developer settings →
-   Fine-grained tokens → this repo only → *Contents: Read-only*) and add it in the Space under
-   **Settings → Variables and secrets → New secret** as `GITHUB_TOKEN`.
-3. In the same place add the secrets `SECRET_KEY` (any long random text), and for e-mail `SMTP_HOST`,
-   `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_FROM_NAME` (values as in `.env`).
-4. **Files → Add file → Create a new file**, name it `Dockerfile`, paste the contents of
-   [deploy/huggingface/Dockerfile](deploy/huggingface/Dockerfile), **Commit**.
-5. The Space builds (20-30 min the first time: it downloads the model) and then shows the app.
-   The link is `https://<account>-<space>.hf.space` and does not change.
+1. **Create the server** - console.cloud.google.com → Compute Engine → VM instances → **Create instance**:
+   region `asia-south1` (Mumbai), machine type `e2-standard-8`, boot disk **Ubuntu 24.04 LTS (x86/64)**, 50 GB;
+   Networking: tick **Allow HTTP traffic** and **Allow HTTPS traffic**, and set the external IPv4 address to a
+   **static** one (so the link never changes).
+2. **Upload the app** - click **SSH** next to the server → in that window **Upload file** → the app zip
+   (`ClinieSync_server.zip`: this repo plus the built UI, the data and `.env`).
+3. **Install and start** - in the SSH window:
+   ```bash
+   unzip -q ClinieSync_server.zip && cd cliniesync
+   bash deploy/gcp/setup_server.sh
+   ```
+   About 10 minutes. It ends with the link: `https://<ip-with-dashes>.sslip.io`.
 
-- **Updating after a GitHub change:** Space → Settings → **Factory rebuild**.
-- **It runs on a small CPU**, so AI-written answers take one to two minutes; the page waits for them and says so.
-  Record-built answers (tables, counts, charts) stay instant. The two extra LLM self-check calls per question are
-  off there (`LLM_SELF_CHECK=false`); the deterministic NeMo rails still check every question and answer.
-- **Sleep:** a free Space sleeps after 48 h without visitors and wakes on the next visit (a minute or two).
-  The GitHub workflow *Keep demo awake* visits it every 6 h - set the repository variable `SPACE_URL` to the link.
-- The data is regenerated on every rebuild/restart, so the demo always starts clean.
-- Logs: Space → **Logs** (Build / Container).
+The app and the model start on boot and restart if they stop - nobody has to keep a terminal open.
+
+- Status / logs: `systemctl status cliniesync` · `journalctl -u cliniesync -n 50`
+- Restart: `sudo systemctl restart cliniesync`
+- Update the app: upload the new zip, `unzip -oq ClinieSync_server.zip`, run the setup script again.
+- Credit: e2-standard-8 uses about $7-8 of credit a day (~40 days); `e2-standard-4` halves that, with slower AI answers
+  (VM → Stop → Edit → Machine type). A stopped VM uses almost no credit.
 
 ## Running it on your own machine
 

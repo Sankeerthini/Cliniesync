@@ -11,7 +11,7 @@ cd cliniesync
 scripts/setup.sh        # venv + synthetic data + ETL + tests + UI build (needs Python 3.12, Node 18+)
 scripts/run.sh          # http://localhost:8000  (API docs at /docs)
 ```
-**Demo with a public link:** deploy to a free Hugging Face Space ([deploy/huggingface/](deploy/huggingface/)), or run `scripts/start_demo.sh --fixed` on your own machine for a fixed tunnel link. Both are in [RUNBOOK.md](RUNBOOK.md).
+**Demo with a public link:** a Google Cloud server set up by `deploy/gcp/setup_server.sh`, or `scripts/start_demo.sh --fixed` on your own machine (Tailscale Funnel). Both are in [RUNBOOK.md](RUNBOOK.md).
 Sign in with one of the demo role cards (password `demo123`): **Dr. Ananya Rao** (doctor), **Rekha S.** (care coordinator), **Hospital Administrator**.
 
 Optional open-source LLM (summaries, text-to-SQL fallback, NeMo LLM self-check rails, translation):
