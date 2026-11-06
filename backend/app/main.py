@@ -11,7 +11,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -44,7 +43,6 @@ app = FastAPI(title="ClinieSync API", version="1.0.0", lifespan=lifespan,
               description="Maternal & Child Healthcare Operations Copilot - assistive, not diagnostic.")
 app.add_middleware(CORSMiddleware, allow_origins=list(get_settings().cors_origins), allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
-app.add_middleware(GZipMiddleware, minimum_size=1024)   # the UI bundle is ~800 KB raw, ~250 KB compressed
 
 for r in (auth, system, query, patients, followups, analytics, reviews, reports, kpi, trust, data):
     app.include_router(r.router)

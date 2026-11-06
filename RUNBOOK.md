@@ -1,37 +1,9 @@
 # Running the ClinieSync demo
 
-Two ways to give people a link: a Google Cloud server that runs on its own, or your own machine with a tunnel.
-Both keep the same link every time.
+Everything needed is in this folder: the app, the built UI, the synthetic data and a ready Python environment for Linux.
+You add a few tools to the machine once, then start it with one command - and the public link stays the same every time.
 
-## Public link on a Google Cloud server (no one's computer needs to stay on)
-
-A small Ubuntu server on Google Cloud runs the same app and model (Ollama + qwen2.5:7b-instruct) around the clock.
-The free trial ($300 credit, 90 days) covers it; nothing is charged unless the account is upgraded to paid.
-
-1. **Create the server** - console.cloud.google.com → Compute Engine → VM instances → **Create instance**:
-   region `asia-south1` (Mumbai), machine type `e2-standard-8`, boot disk **Ubuntu 24.04 LTS (x86/64)**, 50 GB;
-   Networking: tick **Allow HTTP traffic** and **Allow HTTPS traffic**, and set the external IPv4 address to a
-   **static** one (so the link never changes).
-2. **Upload the app** - click **SSH** next to the server → in that window **Upload file** → the app zip
-   (`ClinieSync_server.zip`: this repo plus the built UI, the data and `.env`).
-3. **Install and start** - in the SSH window:
-   ```bash
-   unzip -q ClinieSync_server.zip && cd cliniesync
-   bash deploy/gcp/setup_server.sh
-   ```
-   About 10 minutes. It ends with the link: `https://<ip-with-dashes>.sslip.io`.
-
-The app and the model start on boot and restart if they stop - nobody has to keep a terminal open.
-
-- Status / logs: `systemctl status cliniesync` · `journalctl -u cliniesync -n 50`
-- Restart: `sudo systemctl restart cliniesync`
-- Update the app: upload the new zip, `unzip -oq ClinieSync_server.zip`, run the setup script again.
-- Credit: e2-standard-8 uses about $7-8 of credit a day (~40 days); `e2-standard-4` halves that, with slower AI answers
-  (VM → Stop → Edit → Machine type). A stopped VM uses almost no credit.
-
-## Running it on your own machine
-
-### Once per machine
+## Once per machine
 
 1. **Ollama + the model** (AI-written summaries; the app also works without it)
    ```bash
@@ -49,7 +21,7 @@ The app and the model start on boot and restart if they stop - nobody has to kee
 
 Turn off automatic reboots for system updates on this machine during the hackathon.
 
-### Every time you run the demo
+## Every time you run the demo
 
 Use the normal **Terminal** app (not the VS Code terminal - closing VS Code would stop the demo):
 

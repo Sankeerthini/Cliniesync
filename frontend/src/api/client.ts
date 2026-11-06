@@ -67,24 +67,3 @@ export const api = {
   post: <T>(p: string, b?: unknown) => request<T>("POST", p, b ?? {}),
   upload: <T>(p: string, f: FormData) => request<T>("POST", p, f, true),
 };
-
-// Ask runs as a server-side job that the page polls with short requests, so a slow model answer (minutes on a
-// CPU-only server) never hangs on one long connection. A poll lost to the network is simply retried.
-type JobState = { status: "running"; elapsed_s: number } | { status: "done"; result: QueryResponse };
-
-export async function runQuery(body: { text: string; patient_id?: string | null; input_mode: "text" | "voice" },
-                               onWait?: (seconds: number) => void): Promise<QueryResponse> {
-  const { job_id } = await api.post<{ job_id: string }>("/api/query/jobs", body);
-  let misses = 0;
-  for (let delay = 350; ; delay = Math.min(delay * 1.4, 1500)) {
-    await new Promise(r => setTimeout(r, delay));
-    try {
-      const job = await api.get<JobState>(`/api/query/jobs/${job_id}`);
-      misses = 0;
-      if (job.status === "done") return job.result;
-      onWait?.(job.elapsed_s);
-    } catch (e) {
-      if (e instanceof ApiError || ++misses > 30) throw e;   // the server said no - or the network has been gone ~45 s
-    }
-  }
-}
